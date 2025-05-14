@@ -1,0 +1,90 @@
+services:
+  mysql-db:
+    image: mysql:5.7
+    restart: always
+    platform: linux/amd64
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234!
+      MYSQL_DATABASE: onion-db
+      MYSQL_USER: onion-user
+      MYSQL_PASSWORD: root1234!
+    ports:
+      - "3311:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.enabled=false  # 보안 설정 비활성화
+      - xpack.license.self_generated.type=basic
+      - ELASTIC_PASSWORD=root1234!
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    command: >
+      sh -c "bin/elasticsearch-plugin remove analysis-nori || true &&
+                 bin/elasticsearch-plugin install analysis-nori &&
+                 exec elasticsearch"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.3
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.3
+    container_name: logstash
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/mysql-connector-j-9.3.0.jar:/usr/share/logstash/mysql-connector-j-9.3.0.jar
+    environment:
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+  redis:
+    image: redis:7
+    container_name: redis7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+  mongodb:
+    image: mongo:7
+    container_name: mongo-server
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"       # AMQP 기본 포트
+      - "15672:15672"     # 관리 UI 포트 (http://localhost:15672)
+    environment:
+      RABBITMQ_DEFAULT_USER: onion-user     # 초기 사용자 ID
+      RABBITMQ_DEFAULT_PASS: root1234!  # 초기 사용자 PW
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+volumes:
+  mysql_data:
+  elasticsearch-data:
+    driver: local
+  redis-data:
+  mongo-data:
+  rabbitmq-data:
+    driver: local
+
